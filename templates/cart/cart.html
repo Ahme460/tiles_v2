@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block additional_css %}
+  <link rel="stylesheet" href="{% static 'css/cart.css' %}" />
+{% endblock %}
+
+{% block content %}
+  <div class="cart-container">
+    <h1>Shopping Cart</h1>
+
+    {% if products %}
+      <table class="cart-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Price</th>
+            <th>Quantity</th>
+            <th>Total</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in products %}
+            <tr>
+              <td>{{ item.product.name }}</td>
+              <td>${{ item.product.price }}</td>
+              <td>{{ item.quantity }}</td>
+              <td>${{ item.total_price }}</td>
+              <td>
+                <button class="btn btn-danger btn-sm remove-item" data-product-id="{{ item.id }}">Remove</button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="cart-summary">
+        <p>
+          Total Items: <strong>{{ total_quantity }}</strong>
+        </p>
+        <p>
+          Grand Total: <strong>{{ grand_total }}</strong>
+        </p>
+      </div>
+    {% else %}
+      <p class="empty-cart">Your cart is empty.</p>
+    {% endif %}
+
+    <div class="cart-actions">
+      <a href="{% url 'index' %}" class="button btn-primary">Continue Shopping</a>
+      <a href="#" id="whatsapp-btn" class="button checkout">Send Order to WhatsApp</a>
+      <button class="btn btn-danger" onclick="clearCart()">Clear Cart</button>
+    </div>
+  </div>
+
+  <input type="hidden" id="csrf-token" value="{{ csrf_token }}" />
+{% endblock %}
+
+{% block additional_js %}
+  <script>
+    document.getElementById("whatsapp-btn").addEventListener("click", function () {
+        const phoneNumber = "+1234567899"; 
+        const products = {{ products|safe }};
+        const grandTotal = "{{ grand_total }}";
+
+        let message = "🛒 السلام عليكم, مرفق لكم الطلب الخاص بي:\n";
+
+        products.forEach((item, index) => {
+            message += `${index + 1}. ${item.product.name}\n`;
+            message += `Price: $${item.product.price}\n`;
+            message += `Quantity: ${item.quantity}\n`;
+            message += `Total: $${item.total_price}\n\n`;
+        });
+
+        message += `Grand Total: $${grandTotal}\n`;
+        message += "Thank you for your order!";
+
+        const whatsappURL = `https://wa.me/${phoneNumber}/?text=${encodeURIComponent(message)}`;
+        window.location.href = whatsappURL;
+    });
+
+    document.querySelectorAll('.remove-item').forEach(button => {
+        button.addEventListener('click', function () {
+            const productId = this.dataset.productId;  
+            const csrfToken = document.getElementById('csrf-token').value;
+    
+            fetch(`/cart/remove/${productId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,  
+                },
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        alert(data.message);
+                        location.reload();
+                    } else if (data.error) {
+                        alert(data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert("There was an issue with removing the item from the cart.");
+                });
+        });
+    });
+
+    function clearCart() {
+        if (confirm("Are you sure you want to clear the cart?")) {
+            fetch("/cart/clear/", {
+                method: "POST",  
+                headers: {
+                    "X-CSRFToken": document.getElementById('csrf-token').value,  
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert(data.message);  
+                    location.reload();  
+                } else if (data.error) {
+                    alert(data.error);  
+                }
+                
+            })
+            .catch(error => {
+                console.error("Error clearing cart:", error);  
+            });
+        }
+    }
+</script>
+{% endblock %}
